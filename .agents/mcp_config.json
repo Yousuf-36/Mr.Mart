@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "mrmart": {
+      "serverUrl": "http://localhost:3333/mcp"
+    }
+  }
+}

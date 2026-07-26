@@ -1,0 +1,118 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mrmart}
+      POSTGRES_USER: ${POSTGRES_USER:-mrmart}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_dev_only}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mrmart} -d ${POSTGRES_DB:-mrmart}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Redis ────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Migrations (init container — runs once, then exits) ──────
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: deps
+    command: node apps/backend/migrations/run-migrations.js
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mrmart}:${POSTGRES_PASSWORD:-changeme_dev_only}@postgres:5432/${POSTGRES_DB:-mrmart}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # ── MCP Server ───────────────────────────────────────────────
+  mcp-server:
+    build:
+      context: .
+      dockerfile: packages/mcp-server/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3333:3333"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mrmart}:${POSTGRES_PASSWORD:-changeme_dev_only}@postgres:5432/${POSTGRES_DB:-mrmart}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MCP_PORT: 3333
+      NODE_ENV: ${NODE_ENV:-development}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3333/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend ──────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mrmart}:${POSTGRES_PASSWORD:-changeme_dev_only}@postgres:5432/${POSTGRES_DB:-mrmart}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      BACKEND_PORT: 3001
+      MCP_SERVER_URL: http://mcp-server:3333
+      NODE_ENV: ${NODE_ENV:-development}
+    depends_on:
+      mcp-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Worker ───────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mrmart}:${POSTGRES_PASSWORD:-changeme_dev_only}@postgres:5432/${POSTGRES_DB:-mrmart}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: ${NODE_ENV:-development}
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
+  redis_data:

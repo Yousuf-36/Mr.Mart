@@ -1,0 +1,42 @@
+# ----- Node / JS -----
+node_modules/
+dist/
+build/
+.cache/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ----- Environment / Secrets -----
+.env
+.env.local
+.env.production
+.env.staging
+# .env.example is intentionally NOT ignored — it's the template, contains no real secrets
+
+# ----- Docker local volumes -----
+.docker-volumes/
+postgres-data/
+redis-data/
+
+# ----- React Native -----
+apps/frontend/.gradle/
+apps/frontend/android/.gradle/
+apps/frontend/android/app/build/
+apps/frontend/android/build/
+apps/frontend/ios/build/
+apps/frontend/ios/Pods/
+apps/frontend/ios/DerivedData/
+*.xcworkspace/
+*.xcuserdata/
+
+# ----- IDE / OS -----
+.vscode/settings.json
+.idea/
+*.DS_Store
+Thumbs.db
+
+# ----- Logs -----
+logs/
+*.log
