@@ -1,10 +1,11 @@
 /**
- * Postgres database data access layer for Mr. Mart MCP server (Stage 1).
+ * Postgres database data access layer for Mr. Mart MCP server (Stage 1 & 2).
  * Replaces mock-store.ts with real SQL queries against Postgres schema (docs/04).
  */
 
 import pg from "pg";
 import dotenv from "dotenv";
+import { v4 as uuidv4 } from "uuid";
 import {
   calculateReorder,
   ReorderCalculationResult,
@@ -61,6 +62,12 @@ export interface DbAction {
   created_at: Date;
   decided_at: Date | null;
   executed_at: Date | null;
+}
+
+export function computeStockStatus(qty: number, reorderPoint: number): "green" | "yellow" | "red" {
+  if (qty <= reorderPoint) return "red";
+  if (qty <= reorderPoint * 1.5) return "yellow";
+  return "green";
 }
 
 // ── Store & Settings ─────────────────────────────────────────────────────────
@@ -160,8 +167,6 @@ export async function hasPendingAction(sku: string, type: string, storeId: strin
   return res.rows.length > 0;
 }
 
-import { v4 as uuidv4 } from "uuid";
-
 export async function createPendingActionDb(
   type: string,
   sku: string | null,
@@ -205,7 +210,7 @@ export async function getPendingActionsDb(limit: number = 15, storeId: string = 
   return res.rows;
 }
 
-export async function markActionApprovedDb(actionId: string, decidedBy: string = "owner-seed", storeId: string = DEFAULT_STORE_ID): Promise<DbAction> {
+export async function markActionApprovedDb(actionId: string, decidedBy: string = "c0000000-0000-0000-0000-000000000001", storeId: string = DEFAULT_STORE_ID): Promise<DbAction> {
   const res = await query<DbAction>(
     `UPDATE actions
      SET status = 'approved', decided_at = NOW(), decided_by = $1
@@ -230,7 +235,7 @@ export async function markActionExecutedDb(actionId: string, status: "executed" 
   return res.rows[0];
 }
 
-export async function markActionRejectedDb(actionId: string, reason?: string, decidedBy: string = "owner-seed", storeId: string = DEFAULT_STORE_ID): Promise<DbAction> {
+export async function markActionRejectedDb(actionId: string, reason?: string, decidedBy: string = "c0000000-0000-0000-0000-000000000001", storeId: string = DEFAULT_STORE_ID): Promise<DbAction> {
   const res = await query<DbAction>(
     `UPDATE actions
      SET status = 'rejected', decided_at = NOW(), reject_reason = $1, decided_by = $2

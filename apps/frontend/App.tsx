@@ -1,72 +1,145 @@
 /**
- * Mr. Mart — Stage 0 splash screen.
- * Full app screens are built from Stage 1 onward.
- * See docs/01 §7 for the Cherry Bold design system.
+ * Mr. Mart Cockpit App — Stage 2
+ * Bottom Tab Navigation between Approval Queue and 3 Monitoring Screens.
+ * Visual-First, Cherry Bold Design System (doc 01 §4, §6, §7).
  */
 
-import React from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
+  TouchableOpacity,
   StyleSheet,
+  SafeAreaView,
   StatusBar,
-  ActivityIndicator,
-} from 'react-native';
+} from "react-native";
+import { COLORS } from "./src/theme/colors";
+import { ApprovalQueueScreen } from "./src/screens/ApprovalQueueScreen";
+import { StockPulseScreen } from "./src/screens/StockPulseScreen";
+import { SalesPulseScreen } from "./src/screens/SalesPulseScreen";
+import { TodaysMoneyScreen } from "./src/screens/TodaysMoneyScreen";
 
-const CHERRY_RED = '#990011';
-const BG = '#FCF6F5';
-const INK = '#241111';
+type TabType = "queue" | "stock" | "sales" | "money";
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<TabType>("queue");
+
+  const renderScreen = () => {
+    switch (activeTab) {
+      case "queue":
+        return <ApprovalQueueScreen />;
+      case "stock":
+        return <StockPulseScreen />;
+      case "sales":
+        return <SalesPulseScreen />;
+      case "money":
+        return <TodaysMoneyScreen />;
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor={CHERRY_RED} barStyle="light-content" />
-      <View style={styles.logoBlock}>
-        <Text style={styles.logo}>🛒</Text>
-        <Text style={styles.title}>Mr. Mart</Text>
-        <Text style={styles.sub}>AI Automation for Mini Supermarkets</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar backgroundColor={COLORS.brandRed} barStyle="light-content" />
+
+      {/* Screen Body */}
+      <View style={styles.screenContainer}>{renderScreen()}</View>
+
+      {/* Bottom Navigation Tab Bar (doc 01 §6) */}
+      <View style={styles.tabBar}>
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => setActiveTab("queue")}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.tabIcon}>📋</Text>
+          <Text style={[styles.tabLabel, activeTab === "queue" && styles.activeTabLabel]}>
+            Queue
+          </Text>
+          {activeTab === "queue" && <View style={styles.activeIndicator} />}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => setActiveTab("stock")}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.tabIcon}>🔋</Text>
+          <Text style={[styles.tabLabel, activeTab === "stock" && styles.activeTabLabel]}>
+            Stock
+          </Text>
+          {activeTab === "stock" && <View style={styles.activeIndicator} />}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => setActiveTab("sales")}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.tabIcon}>📈</Text>
+          <Text style={[styles.tabLabel, activeTab === "sales" && styles.activeTabLabel]}>
+            Sales
+          </Text>
+          {activeTab === "sales" && <View style={styles.activeIndicator} />}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.tabItem}
+          onPress={() => setActiveTab("money")}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.tabIcon}>💰</Text>
+          <Text style={[styles.tabLabel, activeTab === "money" && styles.activeTabLabel]}>
+            Money
+          </Text>
+          {activeTab === "money" && <View style={styles.activeIndicator} />}
+        </TouchableOpacity>
       </View>
-      <ActivityIndicator size="large" color={CHERRY_RED} style={styles.spinner} />
-      <Text style={styles.stage}>Stage 0 — Skeleton</Text>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: BG,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: COLORS.bg,
   },
-  logoBlock: {
-    alignItems: 'center',
-    marginBottom: 40,
+  screenContainer: {
+    flex: 1,
   },
-  logo: {
-    fontSize: 72,
-    marginBottom: 12,
+  tabBar: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    height: 64,
+    paddingBottom: 8,
+    paddingTop: 6,
   },
-  title: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: CHERRY_RED,
-    letterSpacing: 1,
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
   },
-  sub: {
-    fontSize: 14,
-    color: INK,
-    opacity: 0.6,
-    marginTop: 6,
-    textAlign: 'center',
+  tabIcon: {
+    fontSize: 20,
+    marginBottom: 2,
   },
-  spinner: {
-    marginTop: 24,
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.inkMuted,
   },
-  stage: {
-    fontSize: 12,
-    color: INK,
-    opacity: 0.4,
-    marginTop: 16,
+  activeTabLabel: {
+    color: COLORS.brandRed,
+    fontWeight: "900",
+  },
+  activeIndicator: {
+    position: "absolute",
+    top: 0,
+    width: 24,
+    height: 3,
+    backgroundColor: COLORS.brandRed,
+    borderRadius: 2,
   },
 });

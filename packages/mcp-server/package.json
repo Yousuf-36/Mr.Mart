@@ -7,6 +7,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./db/index.js": "./dist/db/index.js",
+    "./queue/index.js": "./dist/queue/index.js",
     "./store/pg-store.js": "./dist/store/pg-store.js",
     "./formulas/reorder.js": "./dist/formulas/reorder.js"
   },

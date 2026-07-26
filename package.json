@@ -17,6 +17,7 @@
     "migrate": "node apps/backend/migrations/run-migrations.js"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "pg-mem": "^3.0.14",
     "typescript": "^5.4.5"
   },
