@@ -12,7 +12,8 @@
     "bullmq": "^5.8.7",
     "dotenv": "^16.4.5",
     "ioredis": "^5.4.1",
-    "pg": "^8.12.0"
+    "pg": "^8.12.0",
+    "@mrmart/mcp-server": "*"
   },
   "devDependencies": {
     "@types/node": "^20.14.9",

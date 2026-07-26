@@ -281,9 +281,11 @@ Other critical points:
 | Stage | Status | What was done |
 |---|---|---|
 | **Stage 0** | ✅ Complete | Monorepo scaffold, 11 Postgres migrations (multi-tenant from `accounts`), MCP server with all 18 tools (mock data), Backend health endpoint, Worker BullMQ skeleton, docker-compose, README |
-| **Stage 1** | ⏳ Not started | Auto-Reorder: real Postgres queries, full draft→approve→execute loop |
+| **Stage 1** | ✅ Complete | Auto-Reorder: real Postgres queries (pg), deterministic formulas, guardrails (`capped_by_storage_limit`, `requires_second_confirmation`, duplicate prevention), formula unit tests, Redis queue execution |
 | **Stage 2** | ⏳ Not started | Auth: phone + OTP, JWT, owner/staff role enforcement |
 | **Stages 3–10** | ⏳ Not started | See docs/10 for full stage breakdown |
+
+> **Note on docker-compose:** `docker-compose` itself has not been run directly on this dev machine (verified via equivalent `tsx`/in-memory process and unit tests). Full end-to-end `docker-compose up` verification is scheduled for Stage 4 before deployment features begin.
 
 ---
 

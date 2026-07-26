@@ -16,6 +16,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
+import { draftReorderForSkuDb, DEFAULT_STORE_ID } from "../store/pg-store.js";
+
 // Helper: wrap result in a record shape the MCP SDK requires.
 // Arrays must be wrapped in { items: [] } — the SDK validates structuredContent is a record object.
 function sc<T>(val: T): Record<string, unknown> {
@@ -57,34 +59,8 @@ export function registerDraftTools(server: McpServer): void {
       },
       annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
     },
-    async ({ sku }) => {
-      const product = getProduct(sku);
-      if (!product) {
-        throw new Error(`Product not found: ${sku}`);
-      }
-
-      const currentQty = mockStockLevels[sku] ?? 0;
-      if (currentQty >= product.reorder_point) {
-        throw new Error(`Stock level (${currentQty}) is above reorder point (${product.reorder_point}) — no draft needed`);
-      }
-
-      const supplier = product.supplier_id ? getSupplier(product.supplier_id) : null;
-      // Reorder quantity: enough to reach max_order_qty, capped at max_order_qty
-      const qty = Math.min(
-        product.max_order_qty - currentQty,
-        product.max_order_qty
-      );
-      const cost = qty * product.unit_cost;
-
-      const action = createPendingAction("reorder", sku, {
-        sku,
-        supplier: supplier?.name ?? "Unknown Supplier",
-        supplier_phone: supplier?.phone ?? null,
-        qty,
-        cost,
-        unit_cost: product.unit_cost,
-        unit: product.unit,
-      });
+    async ({ sku, store_id }) => {
+      const action = await draftReorderForSkuDb(sku, store_id ?? DEFAULT_STORE_ID);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify(action, null, 2) }],

@@ -4,6 +4,12 @@
   "private": true,
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./db/index.js": "./dist/db/index.js",
+    "./store/pg-store.js": "./dist/store/pg-store.js",
+    "./formulas/reorder.js": "./dist/formulas/reorder.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",

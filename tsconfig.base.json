@@ -9,6 +9,10 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@mrmart/mcp-server/*": ["packages/mcp-server/dist/*"]
+    },
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
