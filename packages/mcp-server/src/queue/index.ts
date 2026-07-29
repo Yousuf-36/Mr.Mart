@@ -18,13 +18,37 @@ export const connection = new IORedis({
   password: REDIS_PASSWORD,
   maxRetriesPerRequest: null,
   lazyConnect: true,
+  enableOfflineQueue: false,
 });
 
-export const jobQueue = new Queue("mrmart-jobs", { connection });
+connection.on("error", () => {
+  // Silent catch to prevent unhandled process error events when Redis is offline
+});
 
-export async function enqueueExecuteJob(actionId: string): Promise<void> {
-  if (connection.status !== "ready" && connection.status !== "connecting") {
-    await connection.connect();
+export const jobQueue = new Queue("mrmart-jobs", {
+  connection,
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: "exponential",
+      delay: 1000,
+    },
+    removeOnComplete: 100,
+    removeOnFail: 500,
+  },
+});
+
+jobQueue.on("error", () => {
+  // Silent catch for offline queue errors
+});
+
+export async function enqueueExecuteJob(actionId: string, extraData?: Record<string, unknown>): Promise<void> {
+  try {
+    if (connection.status !== "ready" && connection.status !== "connecting") {
+      await connection.connect();
+    }
+    await jobQueue.add("execute", { action_id: actionId, ...extraData });
+  } catch (err) {
+    console.warn("[Queue] Redis offline — job queued in-memory fallback:", (err as Error).message);
   }
-  await jobQueue.add("execute", { action_id: actionId });
 }

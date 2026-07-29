@@ -62,15 +62,17 @@ services:
       MCP_PORT: 3333
       NODE_ENV: ${NODE_ENV:-development}
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3333/health || exit 1"]
-      interval: 10s
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3333/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   # ── Backend ──────────────────────────────────────────────────
   backend:
@@ -88,13 +90,17 @@ services:
       MCP_SERVER_URL: http://mcp-server:3333
       NODE_ENV: ${NODE_ENV:-development}
     depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       mcp-server:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3001/health || exit 1"]
-      interval: 10s
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   # ── Worker ───────────────────────────────────────────────────
   worker:
@@ -108,6 +114,8 @@ services:
       REDIS_PORT: 6379
       NODE_ENV: ${NODE_ENV:-development}
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
       migrate:

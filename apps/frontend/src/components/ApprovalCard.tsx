@@ -147,8 +147,8 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
         </View>
       </View>
 
-      {/* Action Buttons (Only if pending) */}
-      {action.status === "pending" && (
+      {/* Action Buttons (Pending or Failed Retry) */}
+      {(action.status === "pending" || action.status === "failed") && (
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={[styles.rejectBtn, { minHeight: LAYOUT.minTouchTarget }]}
@@ -167,7 +167,7 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
             style={[
               styles.approveBtn,
               { minHeight: LAYOUT.minTouchTarget },
-              confirming && styles.approveConfirmingBtn,
+              (confirming || isFailed) && styles.approveConfirmingBtn,
             ]}
             onPress={handleApproveTap}
             disabled={loadingApprove || loadingReject}
@@ -179,6 +179,8 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
               <Text style={styles.approveBtnText}>
                 Confirm ₹{payload.cost?.toLocaleString("en-IN")} Order?
               </Text>
+            ) : isFailed ? (
+              <Text style={styles.approveBtnText}>🔄 Retry Execution</Text>
             ) : (
               <Text style={styles.approveBtnText}>✓ Approve</Text>
             )}

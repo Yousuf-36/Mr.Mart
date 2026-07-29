@@ -12,7 +12,7 @@ import {
   DEFAULT_STORE_ID,
   pool,
 } from "../store/pg-store.js";
-import { computeStockStatus } from "../store/mock-store.js";
+import { computeStockStatus } from "../store/pg-store.js";
 
 function sc<T>(val: T): Record<string, unknown> {
   if (Array.isArray(val)) return { items: val };

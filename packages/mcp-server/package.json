@@ -5,16 +5,18 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
-    "./db/index.js": "./dist/db/index.js",
-    "./queue/index.js": "./dist/queue/index.js",
-    "./store/pg-store.js": "./dist/store/pg-store.js",
-    "./formulas/reorder.js": "./dist/formulas/reorder.js"
+    ".": "./src/index.ts",
+    "./db/index.js": "./src/db/index.ts",
+    "./queue/index.js": "./src/queue/index.ts",
+    "./store/pg-store.js": "./src/store/pg-store.ts",
+    "./formulas/reorder.js": "./src/formulas/reorder.ts",
+    "./formulas/stage3.js": "./src/formulas/stage3.ts"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
+    "test": "tsx --test src/formulas/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

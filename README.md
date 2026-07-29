@@ -282,10 +282,10 @@ Other critical points:
 |---|---|---|
 | **Stage 0** | ✅ Complete | Monorepo scaffold, 11 Postgres migrations (multi-tenant from `accounts`), MCP server with all 18 tools (mock data), Backend health endpoint, Worker BullMQ skeleton, docker-compose, README |
 | **Stage 1** | ✅ Complete | Auto-Reorder: real Postgres queries (pg), deterministic formulas, guardrails (`capped_by_storage_limit`, `requires_second_confirmation`, duplicate prevention), formula unit tests, Redis queue execution |
-| **Stage 2** | ✅ Complete | Cockpit UI (React Native / Expo): Approval Queue, Stock Pulse, Sales Pulse, Today's Money screens wired to real Stage 1 backend, Cherry Bold palette, 56dp touch targets, visual guardrail badges, 503ms 3G render |
-| **Stages 3–10** | ⏳ Not started | See docs/10 for full stage breakdown |
-
-> **Note on docker-compose:** `docker-compose` itself has not been run directly on this dev machine (verified via equivalent `tsx`/in-memory process and unit tests). Full end-to-end `docker-compose up` verification is scheduled for Stage 4 before deployment features begin.
+| **Stage 2** | ✅ Complete | Cockpit UI (React Native / Expo): Approval Queue, Stock Pulse, Sales Pulse, Today's Money screens wired to real Stage 1 backend, Cherry Bold palette, 56dp touch targets, visual guardrail badges. *Tech debt cleared in Stage 3: D-1..D-10 remediated.* |
+| **Stage 3** | ✅ Complete | AI Operational & Customer Automations (doc 03 §2–7): Expiry Markdown, Expiry Write-off, Shelf Restock Task, Slow-Mover Liquidation, Supplier Follow-up, Day-Close Reconciliation. All 7 draft tools fully wired to Postgres & Worker schedulers. 30/30 unit tests passing. |
+| **Stage 4** | ✅ Complete | Infrastructure Hardening & Cross-Container Resilience (doc 04 & doc 10): Docker Compose healthchecks (`pg_isready`, `redis-cli ping`, native fetch probes), BullMQ exponential retries (3 attempts, 1s backoff), DLQ state transitions (`status = 'failed'`), `executeActionWithLockDb` idempotency, Cockpit UI retry triggers, and 4/4 fault injection tests passing (`verify-stage4.ts`). |
+| **Stages 5–10** | ⏳ Not started | See docs/10 for full stage breakdown |
 
 ---
 

@@ -11,7 +11,7 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@mrmart/mcp-server/*": ["packages/mcp-server/dist/*"]
+      "@mrmart/mcp-server/*": ["packages/mcp-server/src/*"]
     },
     "declaration": true,
     "declarationMap": true,

@@ -27,19 +27,19 @@ export async function seedDatabase() {
   console.log("👤 Creating seed account and store...");
   const accountRes = await query(`
     INSERT INTO accounts (id, name, owner_phone, plan, trial_ends_at)
-    VALUES ('a0000000-0000-0000-0000-000000000001', 'Supermart Mart Owner', '+919876543210', 'trial', NOW() + INTERVAL '14 days')
+    VALUES ('a0000000-0000-0000-0000-000000000001'::uuid, 'Supermart Mart Owner', '+919876543210', 'trial', NOW() + INTERVAL '14 days')
     RETURNING id;
   `);
   const accountId = accountRes.rows[0].id;
 
   await query(`
     INSERT INTO subscriptions (id, account_id, plan, status)
-    VALUES ($1, $2, 'trial', 'active');
+    VALUES ($1::uuid, $2::uuid, 'trial', 'active');
   `, [uuidv4(), accountId]);
 
   const storeRes = await query(`
     INSERT INTO stores (id, account_id, name, phone, language, timezone)
-    VALUES ('b0000000-0000-0000-0000-000000000001', $1, 'Mr. Mart Main Branch', '+919876543210', 'en', 'Asia/Kolkata')
+    VALUES ('b0000000-0000-0000-0000-000000000001'::uuid, $1::uuid, 'Mr. Mart Main Branch', '+919876543210', 'en', 'Asia/Kolkata')
     RETURNING id;
   `, [accountId]);
   const storeId = storeRes.rows[0].id;
@@ -137,7 +137,73 @@ export async function seedDatabase() {
     }
   }
 
+
+  // ── Stage 3: Expiry Batches (doc 03 §2–3) ────────────────────────────────
+  console.log("🥛 Seeding Stage 3 expiry batches...");
+  const breadBatchId = uuidv4();
+  const milkBatchId = uuidv4();
+
+  await query(`
+    INSERT INTO expiry_batches (id, sku, store_id, batch_qty, expiry_date)
+    VALUES
+      ($1, 'BREAD-WW', $2, 10.0, CURRENT_DATE + 2),
+      ($3, 'MILK-1L',  $2, 5.0,  CURRENT_DATE - 2);
+  `, [breadBatchId, storeId, milkBatchId]);
+  // BREAD-WW: 2 days left → within markdown_threshold_days=3 → markdown trigger
+  // MILK-1L : expired 2 days ago → days_left=-2 → writeoff trigger
+
+  // Seeding an already-executed markdown for the expired MILK-1L batch
+  // so the writeoff guardrail (markdown window must have elapsed) passes.
+  await query(`
+    INSERT INTO actions (id, store_id, type, sku, payload, status, escalated, decided_at, executed_at)
+    VALUES ($1, $2, 'markdown', 'MILK-1L', $3, 'executed', false, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 days');
+  `, [uuidv4(), storeId, JSON.stringify({
+    batch_id: milkBatchId,
+    product_name: "Full Cream Milk 1L",
+    discount_pct: 0.50,
+    new_price: 36.00,
+    original_price: 72.00,
+    qty: 5,
+    label: "50% off",
+    days_until_expiry: 0,
+  })]);
+
+  // ── Stage 3: Shelf Flag (doc 03 §4) ──────────────────────────────────────
+  console.log("🏪 Seeding Stage 3 shelf flag...");
+  await query(`
+    INSERT INTO shelf_flags (sku, store_id, location, source)
+    VALUES ('OIL-1L', $1, 'A3-Oils', 'manual');
+  `, [storeId]);
+  // OIL-1L: manual empty-flag on shelf A3-Oils → restock task trigger
+
+  // ── Stage 3: Past Executed Reorder for Supplier Follow-up (doc 03 §6) ───
+  console.log("📦 Seeding Stage 3 past-delivery reorder...");
+  const pastReorderActionId = uuidv4();
+  const ownerStaffId = "c0000000-0000-0000-0000-000000000001";
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  await query(`
+    INSERT INTO actions (id, store_id, type, sku, payload, status, escalated, decided_by, decided_at, executed_at)
+    VALUES ($1, $2, 'reorder', 'RICE-5KG', $3, 'executed', false, $4, NOW() - INTERVAL '3 days', NOW() - INTERVAL '2 days');
+  `, [pastReorderActionId, storeId, JSON.stringify({
+    sku: "RICE-5KG",
+    product_name: "Basmati Rice 5kg",
+    supplier: "Metro Staples Wholesale",
+    supplier_phone: "+919876500002",
+    qty: 10,
+    cost: 6000,
+    unit_cost: 600,
+    unit: "bag",
+    expected_delivery_date: yesterday,
+    reorder_point: 20,
+    qty_on_hand: 4,
+    capped_by_storage_limit: false,
+    requires_second_confirmation: false,
+  }), ownerStaffId]);
+  // expected_delivery_date = yesterday → past delivery → supplier follow-up trigger
+
   console.log("✅ Seed completed successfully!");
+
   console.log(`   Store ID: ${storeId}`);
   console.log(`   5 core products seeded with 14 days of sales history (${totalTxnCount} transactions).`);
 }

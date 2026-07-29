@@ -88,9 +88,11 @@ app.post("/api/actions/:id/approve", async (req, res, next) => {
 
     const action = await markActionApprovedDb(actionId, decidedBy, storeId);
 
+    const simulateFailure = req.body.simulate_failure;
+
     // Enqueue job to Redis worker queue
     try {
-      await enqueueExecuteJob(action.id);
+      await enqueueExecuteJob(action.id, simulateFailure ? { simulate_failure: true } : undefined);
     } catch (qErr) {
       console.warn("[Backend] Redis queue unavailable, execution fallback triggered:", qErr);
     }
