@@ -202,6 +202,70 @@ export async function seedDatabase() {
   }), ownerStaffId]);
   // expected_delivery_date = yesterday → past delivery → supplier follow-up trigger
 
+  // ── Stage 5: RBAC Users, Store Users & API Tokens ─────────────────────────
+  console.log("🔐 Seeding Stage 5 RBAC Users, Store Users, API Tokens & Store B...");
+
+  // Clean RBAC tables
+  await query("DELETE FROM api_tokens;");
+  await query("DELETE FROM store_users;");
+  await query("DELETE FROM users WHERE email LIKE '%@mrmart.app';");
+
+  const userOwnerAId = uuidv4();
+  const userManagerAId = uuidv4();
+  const userStaffAId = uuidv4();
+  const userOwnerBId = uuidv4();
+
+  const storeBId = "b0000000-0000-0000-0000-000000000002";
+
+  await query(`
+    INSERT INTO users (id, email, phone, name)
+    VALUES
+      ($1::uuid, 'owner.a@mrmart.app',   '+919876543210', 'Rajesh Owner A'),
+      ($2::uuid, 'manager.a@mrmart.app', '+919876543212', 'Vikram Manager A'),
+      ($3::uuid, 'staff.a@mrmart.app',   '+919876543211', 'Suresh Staff A'),
+      ($4::uuid, 'owner.b@mrmart.app',   '+919876543299', 'Anita Owner B');
+  `, [userOwnerAId, userManagerAId, userStaffAId, userOwnerBId]);
+
+  // Store B insertion
+  await query(`
+    INSERT INTO stores (id, account_id, name, phone, language, timezone)
+    VALUES ($1::uuid, $2::uuid, 'Mr. Mart Store B Branch', '+919876543299', 'en', 'Asia/Kolkata')
+    ON CONFLICT (id) DO NOTHING;
+  `, [storeBId, accountId]);
+
+  // Store Users
+  await query(`
+    INSERT INTO store_users (id, user_id, store_id, role)
+    VALUES
+      ($1::uuid, $2::uuid, $7::uuid, 'owner'),
+      ($3::uuid, $4::uuid, $7::uuid, 'manager'),
+      ($5::uuid, $6::uuid, $7::uuid, 'staff'),
+      ($8::uuid, $9::uuid, $10::uuid, 'owner');
+  `, [uuidv4(), userOwnerAId, uuidv4(), userManagerAId, uuidv4(), userStaffAId, storeId, uuidv4(), userOwnerBId, storeBId]);
+
+  // API Tokens (Expires in 1 year)
+  const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  await query(`
+    INSERT INTO api_tokens (id, user_id, store_id, token, expires_at)
+    VALUES
+      ($1::uuid, $2::uuid, $7::uuid, 'token_owner_store_a',   $11),
+      ($3::uuid, $4::uuid, $7::uuid, 'token_manager_store_a', $11),
+      ($5::uuid, $6::uuid, $7::uuid, 'token_staff_store_a',   $11),
+      ($8::uuid, $9::uuid, $10::uuid, 'token_owner_store_b',   $11);
+  `, [uuidv4(), userOwnerAId, uuidv4(), userManagerAId, uuidv4(), userStaffAId, storeId, uuidv4(), userOwnerBId, storeBId, farFuture]);
+
+  // Seed one pending action for Store B to test Store Isolation
+  const storeBActionId = uuidv4();
+  await query(`
+    INSERT INTO actions (id, store_id, type, sku, payload, status, escalated)
+    VALUES ($1::uuid, $2::uuid, 'reorder', 'RICE-5KG', $3, 'pending', false);
+  `, [storeBActionId, storeBId, JSON.stringify({
+    sku: "RICE-5KG",
+    product_name: "Basmati Rice 5kg (Store B)",
+    qty: 5,
+    cost: 1500,
+  })]);
+
   console.log("✅ Seed completed successfully!");
 
   console.log(`   Store ID: ${storeId}`);

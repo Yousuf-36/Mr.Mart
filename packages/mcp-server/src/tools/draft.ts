@@ -224,47 +224,7 @@ export function registerDraftTools(server: McpServer): void {
     },
     async ({ sku, location, store_id }) => {
       const storeId = store_id ?? DEFAULT_STORE_ID;
-
-      const [product, backroomQty, staff] = await Promise.all([
-        getProduct(sku, storeId),
-        getCurrentStock(sku, storeId),
-        getOnDutyStaff(storeId),
-      ]);
-
-      if (!product) throw new Error(`Product not found: ${sku}`);
-
-      // Shelf restock guardrail (doc 03 §4): no stock = auto-reorder, not restock
-      const { restockQty, blockedByZeroBackroom } = calculateRestockQty(
-        product.shelf_capacity,
-        0,            // shelf_qty_estimate: 0 on a manual empty-flag (camera is Stage 7)
-        backroomQty
-      );
-
-      if (blockedByZeroBackroom) {
-        throw new Error(
-          `Shelf restock blocked: backroom_qty=0 for SKU ${sku}. This is a stockout — route to mrmart_draft_reorder instead.`
-        );
-      }
-
-      // Duplicate check
-      const alreadyPending = await hasPendingAction(sku, "restock_task", storeId);
-      if (alreadyPending) {
-        throw new Error(`Duplicate guardrail: an active restock_task already exists for SKU ${sku}.`);
-      }
-
-      const assignee = staff ? `${staff.name} (${staff.id})` : "owner (no staff found)";
-
-      const payload = {
-        sku,
-        product_name: product.name,
-        location,
-        qty: restockQty,
-        shelf_capacity: product.shelf_capacity,
-        backroom_qty: backroomQty,
-        assignee,
-      };
-
-      const action = await createPendingActionDb("restock_task", sku, payload, storeId);
+      const action = await draftRestockTaskForSkuDb(sku, location, storeId);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(action, null, 2) }],
         structuredContent: sc({ action_id: action.id, status: action.status, payload: action.payload }),
@@ -455,4 +415,49 @@ export function registerDraftTools(server: McpServer): void {
       };
     }
   );
+}
+
+export async function draftRestockTaskForSkuDb(
+  sku: string,
+  location: string = "Aisle Shelf",
+  storeId: string = DEFAULT_STORE_ID
+) {
+  const [product, backroomQty, staff] = await Promise.all([
+    getProduct(sku, storeId),
+    getCurrentStock(sku, storeId),
+    getOnDutyStaff(storeId),
+  ]);
+
+  if (!product) throw new Error(`Product not found: ${sku}`);
+
+  const { restockQty, blockedByZeroBackroom } = calculateRestockQty(
+    product.shelf_capacity,
+    0,
+    backroomQty
+  );
+
+  if (blockedByZeroBackroom) {
+    throw new Error(
+      `Shelf restock blocked: backroom_qty=0 for SKU ${sku}. This is a stockout — route to mrmart_draft_reorder instead.`
+    );
+  }
+
+  const alreadyPending = await hasPendingAction(sku, "restock_task", storeId);
+  if (alreadyPending) {
+    throw new Error(`Duplicate guardrail: an active restock_task already exists for SKU ${sku}.`);
+  }
+
+  const assignee = staff ? `${staff.name} (${staff.id})` : "owner (no staff found)";
+
+  const payload = {
+    sku,
+    product_name: product.name,
+    location,
+    qty: restockQty,
+    shelf_capacity: product.shelf_capacity,
+    backroom_qty: backroomQty,
+    assignee,
+  };
+
+  return createPendingActionDb("restock_task", sku, payload, storeId);
 }

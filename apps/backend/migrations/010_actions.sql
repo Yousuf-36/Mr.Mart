@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS actions (
                     'restock_task',
                     'reorder_point_adjustment',
                     'supplier_message',
-                    'day_close'
+                    'day_close',
+                    'queue_alert'
                   )),
   sku             TEXT,                         -- null for day_close
   payload         JSONB NOT NULL DEFAULT '{}',  -- type-specific fields (doc 03 formulas)

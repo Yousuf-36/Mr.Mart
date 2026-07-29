@@ -16,11 +16,13 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { requireAuth } from "./middleware/auth.js";
 import {
   getPendingActionsDb,
   getActionDb,
   markActionApprovedDb,
   markActionRejectedDb,
+  canApproveAction,
   getProducts,
   getCurrentStock,
   computeStockStatus,
@@ -40,18 +42,18 @@ app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     service: "mrmart-backend",
-    stage: 2,
+    stage: 5,
     timestamp: new Date().toISOString(),
   });
 });
 
-// ── Approval Queue Endpoints ──────────────────────────────────────────────────
+// ── Approval Queue Endpoints (Protected by requireAuth) ───────────────────────
 
-// GET /api/actions/pending — List all pending approval cards
-app.get("/api/actions/pending", async (req, res, next) => {
+// GET /api/actions/pending — List pending approval cards for authenticated store
+app.get("/api/actions/pending", requireAuth, async (req, res, next) => {
   try {
     const limit = parseInt((req.query.limit as string) || "20", 10);
-    const storeId = (req.query.store_id as string) || DEFAULT_STORE_ID;
+    const storeId = req.user!.store_id;
     const actions = await getPendingActionsDb(limit, storeId);
 
     const cards = await Promise.all(
@@ -79,20 +81,40 @@ app.get("/api/actions/pending", async (req, res, next) => {
   }
 });
 
-// POST /api/actions/:id/approve — Approve card (Golden Rule choke point)
-app.post("/api/actions/:id/approve", async (req, res, next) => {
+// POST /api/actions/:id/approve — Approve card (RBAC & Golden Rule choke point)
+app.post("/api/actions/:id/approve", requireAuth, async (req, res, next) => {
   try {
     const actionId = req.params.id;
-    const decidedBy = req.body.decided_by || "c0000000-0000-0000-0000-000000000001"; // Default staff UUID
-    const storeId = req.body.store_id || DEFAULT_STORE_ID;
+    const user = req.user!;
 
-    const action = await markActionApprovedDb(actionId, decidedBy, storeId);
+    // 1. Fetch action scoped to authenticated store
+    const action = await getActionDb(actionId, user.store_id);
+    if (!action) {
+      res.status(404).json({ error: `Action not found or unauthorized for store: ${actionId}` });
+      return;
+    }
+
+    // 2. State machine guard: action must be in 'pending' or 'failed' state
+    if (action.status !== "pending" && action.status !== "failed") {
+      res.status(409).json({ error: `State Machine Block: Action ${actionId} is already in '${action.status}' state` });
+      return;
+    }
+
+    // 3. Enforce RBAC role permissions
+    const check = canApproveAction(user.role, action);
+    if (!check.allowed) {
+      res.status(403).json({ error: check.reason || "Forbidden: Role permissions insufficient for action" });
+      return;
+    }
+
+    // 3. Update status in Postgres
+    const approvedAction = await markActionApprovedDb(actionId, user.user_id, user.store_id);
 
     const simulateFailure = req.body.simulate_failure;
 
-    // Enqueue job to Redis worker queue
+    // 4. Enqueue execution job
     try {
-      await enqueueExecuteJob(action.id, simulateFailure ? { simulate_failure: true } : undefined);
+      await enqueueExecuteJob(approvedAction.id, simulateFailure ? { simulate_failure: true } : undefined);
     } catch (qErr) {
       console.warn("[Backend] Redis queue unavailable, execution fallback triggered:", qErr);
     }
@@ -100,9 +122,9 @@ app.post("/api/actions/:id/approve", async (req, res, next) => {
     res.json({
       success: true,
       action: {
-        id: action.id,
-        status: action.status,
-        decided_at: action.decided_at?.toISOString(),
+        id: approvedAction.id,
+        status: approvedAction.status,
+        decided_at: approvedAction.decided_at?.toISOString(),
       },
     });
   } catch (err) {
@@ -111,22 +133,32 @@ app.post("/api/actions/:id/approve", async (req, res, next) => {
 });
 
 // POST /api/actions/:id/reject — Reject card
-app.post("/api/actions/:id/reject", async (req, res, next) => {
+app.post("/api/actions/:id/reject", requireAuth, async (req, res, next) => {
   try {
     const actionId = req.params.id;
-    const reason = req.body.reason || "Rejected by owner";
-    const decidedBy = req.body.decided_by || "c0000000-0000-0000-0000-000000000001";
-    const storeId = req.body.store_id || DEFAULT_STORE_ID;
+    const user = req.user!;
+    const reason = req.body.reason || "Rejected by user";
 
-    const action = await markActionRejectedDb(actionId, reason, decidedBy, storeId);
+    const action = await getActionDb(actionId, user.store_id);
+    if (!action) {
+      res.status(404).json({ error: `Action not found or unauthorized for store: ${actionId}` });
+      return;
+    }
+
+    if (user.role === "staff" && action.type !== "restock_task") {
+      res.status(403).json({ error: "Staff role is forbidden from rejecting financial automations" });
+      return;
+    }
+
+    const rejectedAction = await markActionRejectedDb(actionId, reason, user.user_id, user.store_id);
 
     res.json({
       success: true,
       action: {
-        id: action.id,
-        status: action.status,
-        reject_reason: action.reject_reason,
-        decided_at: action.decided_at?.toISOString(),
+        id: rejectedAction.id,
+        status: rejectedAction.status,
+        reject_reason: rejectedAction.reject_reason,
+        decided_at: rejectedAction.decided_at?.toISOString(),
       },
     });
   } catch (err) {
@@ -134,12 +166,12 @@ app.post("/api/actions/:id/reject", async (req, res, next) => {
   }
 });
 
-// ── Monitoring Screen Endpoints ───────────────────────────────────────────────
+// ── Monitoring Screen Endpoints (Protected by requireAuth) ────────────────────
 
 // GET /api/monitoring/stock — Stock Pulse
-app.get("/api/monitoring/stock", async (req, res, next) => {
+app.get("/api/monitoring/stock", requireAuth, async (req, res, next) => {
   try {
-    const storeId = (req.query.store_id as string) || DEFAULT_STORE_ID;
+    const storeId = req.user!.store_id;
     const category = req.query.category as string | undefined;
     const products = await getProducts(category, 20, storeId);
 
@@ -167,9 +199,9 @@ app.get("/api/monitoring/stock", async (req, res, next) => {
 });
 
 // GET /api/monitoring/top-sellers — Sales Pulse
-app.get("/api/monitoring/top-sellers", async (req, res, next) => {
+app.get("/api/monitoring/top-sellers", requireAuth, async (req, res, next) => {
   try {
-    const storeId = (req.query.store_id as string) || DEFAULT_STORE_ID;
+    const storeId = req.user!.store_id;
     const period = (req.query.period as string) || "14 days";
     const limit = parseInt((req.query.limit as string) || "10", 10);
 
@@ -202,9 +234,9 @@ app.get("/api/monitoring/top-sellers", async (req, res, next) => {
 });
 
 // GET /api/monitoring/sales-summary — Today's Money
-app.get("/api/monitoring/sales-summary", async (req, res, next) => {
+app.get("/api/monitoring/sales-summary", requireAuth, async (req, res, next) => {
   try {
-    const storeId = (req.query.store_id as string) || DEFAULT_STORE_ID;
+    const storeId = req.user!.store_id;
 
     const queryRes = await query<{
       total_sales: number;
@@ -226,6 +258,41 @@ app.get("/api/monitoring/sales-summary", async (req, res, next) => {
       period: "14 days",
       ...queryRes.rows[0],
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Vision Camera Webhook Endpoints (Protected by x-camera-api-key) ───────────
+
+import { visionAdapter } from "@mrmart/mcp-server/adapters/vision-adapter.js";
+
+const CAMERA_API_KEY = process.env.CAMERA_API_KEY || "cam_secret_key_123";
+
+function validateCameraApiKey(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const apiKey = req.headers["x-camera-api-key"] || req.query.api_key;
+  if (!apiKey || apiKey !== CAMERA_API_KEY) {
+    res.status(401).json({ error: "Unauthorized: Invalid or missing x-camera-api-key hardware header" });
+    return;
+  }
+  next();
+}
+
+// POST /api/webhooks/vision/shelf — Ingest shelf camera stockout telemetry
+app.post("/api/webhooks/vision/shelf", validateCameraApiKey, async (req, res, next) => {
+  try {
+    const result = await visionAdapter.processShelfCameraPayload(req.body);
+    res.json({ success: true, result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/webhooks/vision/queue — Ingest checkout camera congestion telemetry
+app.post("/api/webhooks/vision/queue", validateCameraApiKey, async (req, res, next) => {
+  try {
+    const result = await visionAdapter.processCheckoutCameraPayload(req.body);
+    res.json({ success: true, result });
   } catch (err) {
     next(err);
   }
@@ -256,7 +323,11 @@ function getCategoryIcon(category: string): string {
 }
 
 // ── Error handler ─────────────────────────────────────────────────────────────
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err && (err.code === "22P02" || (err.message && err.message.includes("invalid input syntax for type uuid")))) {
+    res.status(400).json({ error: "Bad Request: Invalid UUID syntax format" });
+    return;
+  }
   console.error("[Backend] Error:", err.message);
   res.status(500).json({ error: err.message || "Internal server error" });
 });

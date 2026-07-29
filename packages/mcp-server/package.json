@@ -10,7 +10,8 @@
     "./queue/index.js": "./src/queue/index.ts",
     "./store/pg-store.js": "./src/store/pg-store.ts",
     "./formulas/reorder.js": "./src/formulas/reorder.ts",
-    "./formulas/stage3.js": "./src/formulas/stage3.ts"
+    "./formulas/stage3.js": "./src/formulas/stage3.ts",
+    "./adapters/vision-adapter.js": "./src/adapters/vision-adapter.ts"
   },
   "scripts": {
     "build": "tsc",

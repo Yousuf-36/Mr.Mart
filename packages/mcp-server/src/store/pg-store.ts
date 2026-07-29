@@ -75,15 +75,87 @@ export interface DbAction {
   executed_at: Date | null;
 }
 
+export type UserRole = "owner" | "manager" | "staff";
+
+export interface DbUserContext {
+  user_id: string;
+  store_id: string;
+  role: UserRole;
+  email: string;
+  name: string;
+}
+
 export function computeStockStatus(qty: number, reorderPoint: number): "green" | "yellow" | "red" {
   if (qty <= reorderPoint) return "red";
   if (qty <= reorderPoint * 1.5) return "yellow";
   return "green";
 }
 
+// ── Stage 5 RBAC & Token Auth Helpers ────────────────────────────────────────
+
+export async function validateApiTokenDb(token: string): Promise<DbUserContext | null> {
+  const res = await query<{
+    user_id: string;
+    store_id: string;
+    role: UserRole;
+    email: string;
+    name: string;
+  }>(
+    `SELECT t.user_id, t.store_id, su.role, u.email, u.name
+     FROM api_tokens t
+     JOIN users u ON t.user_id = u.id
+     JOIN store_users su ON su.user_id = t.user_id AND su.store_id = t.store_id
+     WHERE t.token = $1 AND t.expires_at > NOW()`,
+    [token]
+  );
+  return res.rows[0] ?? null;
+}
+
+export function canApproveAction(
+  role: UserRole,
+  action: DbAction
+): { allowed: boolean; reason?: string } {
+  // Staff cannot approve financial/inventory automations (except restock tasks)
+  if (role === "staff") {
+    if (action.type === "restock_task") {
+      return { allowed: true };
+    }
+    return {
+      allowed: false,
+      reason: `Staff role is forbidden from approving ${action.type} actions (doc 05 §2)`,
+    };
+  }
+
+  // Check if action requires second confirmation (e.g. high value reorders > ₹5000)
+  const payload = action.payload as Record<string, unknown> | undefined;
+  const requiresSecondConfirmation = payload?.requires_second_confirmation === true;
+
+  if (requiresSecondConfirmation && role !== "owner") {
+    return {
+      allowed: false,
+      reason: `High-value order (${action.type}) requires second confirmation from store owner (doc 03 §1)`,
+    };
+  }
+
+  // Manager and Owner can approve standard operational actions
+  if (role === "manager" || role === "owner") {
+    return { allowed: true };
+  }
+
+  return { allowed: false, reason: "Unauthorized role" };
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isUuid(val: unknown): val is string {
+  return typeof val === "string" && UUID_REGEX.test(val);
+}
+
 // ── Store & Settings ─────────────────────────────────────────────────────────
 
 export async function getSettings(storeId: string = DEFAULT_STORE_ID): Promise<DbSettings> {
+  if (!isUuid(storeId)) {
+    throw new Error(`Settings not found for store: ${storeId}`);
+  }
   const res = await query<Omit<DbSettings, "markdown_curve"> & { markdown_curve: unknown }>(
     `SELECT store_id,
             safety_factor::float,
@@ -139,6 +211,7 @@ export async function getProduct(sku: string, storeId: string = DEFAULT_STORE_ID
 }
 
 export async function getProducts(category?: string, limit: number = 15, storeId: string = DEFAULT_STORE_ID): Promise<DbProduct[]> {
+  if (!isUuid(storeId)) return [];
   let sqlText = `
     SELECT p.sku, p.store_id, p.supplier_id, s.name as supplier_name, s.phone as supplier_phone,
            COALESCE(s.lead_time_days, 2) as lead_time_days, p.name, p.photo_url,
@@ -194,11 +267,12 @@ export async function getTrailing14DayAvgDailySales(sku: string, storeId: string
  * not just pending — so drafts cannot slip through mid-execution.
  */
 export async function hasPendingAction(sku: string | null, type: string, storeId: string = DEFAULT_STORE_ID): Promise<boolean> {
+  if (!isUuid(storeId)) return false;
   if (sku === null) {
     // day_close and other null-sku types need IS NULL comparison
     const res = await query(
       `SELECT id FROM actions
-       WHERE store_id = $1 AND sku IS NULL AND type = $2
+       WHERE store_id = $1::uuid AND sku IS NULL AND type = $2
          AND status IN ('pending', 'approved', 'executing')
        LIMIT 1`,
       [storeId, type]
@@ -207,7 +281,7 @@ export async function hasPendingAction(sku: string | null, type: string, storeId
   }
   const res = await query(
     `SELECT id FROM actions
-     WHERE store_id = $1 AND sku = $2 AND type = $3
+     WHERE store_id = $1::uuid AND sku = $2 AND type = $3
        AND status IN ('pending', 'approved', 'executing')
      LIMIT 1`,
     [storeId, sku, type]
@@ -221,6 +295,7 @@ export async function createPendingActionDb(
   payload: Record<string, unknown>,
   storeId: string = DEFAULT_STORE_ID
 ): Promise<DbAction> {
+  if (!isUuid(storeId)) throw new Error(`Invalid store_id format: ${storeId}`);
   try {
     const res = await query<DbAction>(
       `INSERT INTO actions (id, store_id, type, sku, payload, status, escalated)
@@ -238,19 +313,21 @@ export async function createPendingActionDb(
 }
 
 export async function getActionDb(actionId: string, storeId: string = DEFAULT_STORE_ID): Promise<DbAction | null> {
+  if (!isUuid(actionId) || !isUuid(storeId)) return null;
   const res = await query<DbAction>(
     `SELECT id, store_id, type, sku, payload, status, escalated, decided_by, reject_reason, failure_reason, created_at, decided_at, executed_at
-     FROM actions WHERE id = $1 AND store_id = $2`,
+     FROM actions WHERE id = $1::uuid AND store_id = $2::uuid`,
     [actionId, storeId]
   );
   return res.rows[0] ?? null;
 }
 
 export async function getPendingActionsDb(limit: number = 15, storeId: string = DEFAULT_STORE_ID): Promise<DbAction[]> {
+  if (!isUuid(storeId)) return [];
   const res = await query<DbAction>(
     `SELECT id, store_id, type, sku, payload, status, escalated, decided_by, reject_reason, failure_reason, created_at, decided_at, executed_at
      FROM actions
-     WHERE store_id = $1 AND status = 'pending'
+     WHERE store_id = $1::uuid AND status = 'pending'
      ORDER BY escalated DESC, created_at DESC
      LIMIT $2`,
     [storeId, limit]
@@ -259,6 +336,7 @@ export async function getPendingActionsDb(limit: number = 15, storeId: string = 
 }
 
 export async function executeActionWithLockDb(actionId: string, storeId: string = DEFAULT_STORE_ID): Promise<DbAction | null> {
+  if (!isUuid(actionId) || !isUuid(storeId)) return null;
   const res = await query<DbAction>(
     `SELECT id, store_id, type, sku, payload, status, escalated, decided_by, reject_reason, failure_reason, created_at, decided_at, executed_at
      FROM actions
@@ -269,10 +347,13 @@ export async function executeActionWithLockDb(actionId: string, storeId: string 
 }
 
 export async function markActionApprovedDb(actionId: string, decidedBy: string = "c0000000-0000-0000-0000-000000000001", storeId: string = DEFAULT_STORE_ID): Promise<DbAction> {
+  if (!isUuid(actionId) || !isUuid(storeId) || !isUuid(decidedBy)) {
+      throw new Error(`Invalid UUID provided`);
+  }
   const res = await query<DbAction>(
     `UPDATE actions
-     SET status = 'approved', decided_at = NOW(), decided_by = $1, failure_reason = NULL
-     WHERE id = $2 AND store_id = $3 AND status IN ('pending', 'failed')
+     SET status = 'approved', decided_at = NOW(), decided_by = $1::uuid, failure_reason = NULL
+     WHERE id = $2::uuid AND store_id = $3::uuid AND status IN ('pending', 'failed')
      RETURNING id, store_id, type, sku, payload, status, escalated, decided_by, reject_reason, failure_reason, created_at, decided_at, executed_at`,
     [decidedBy, actionId, storeId]
   );
@@ -286,7 +367,7 @@ export async function markActionExecutedDb(actionId: string, status: "executed" 
   const res = await query<DbAction>(
     `UPDATE actions
      SET status = $1, executed_at = NOW(), failure_reason = $2
-     WHERE id = $3 AND store_id = $4
+     WHERE id = $3::uuid AND store_id = $4::uuid
      RETURNING id, store_id, type, sku, payload, status, escalated, decided_by, reject_reason, failure_reason, created_at, decided_at, executed_at`,
     [status, failureReason ?? null, actionId, storeId]
   );
@@ -296,8 +377,8 @@ export async function markActionExecutedDb(actionId: string, status: "executed" 
 export async function markActionRejectedDb(actionId: string, reason?: string, decidedBy: string = "c0000000-0000-0000-0000-000000000001", storeId: string = DEFAULT_STORE_ID): Promise<DbAction> {
   const res = await query<DbAction>(
     `UPDATE actions
-     SET status = 'rejected', decided_at = NOW(), reject_reason = $1, decided_by = $2
-     WHERE id = $3 AND store_id = $4 AND status = 'pending'
+     SET status = 'rejected', decided_at = NOW(), reject_reason = $1, decided_by = $2::uuid
+     WHERE id = $3::uuid AND store_id = $4::uuid AND status = 'pending'
      RETURNING id, store_id, type, sku, payload, status, escalated, decided_by, reject_reason, failure_reason, created_at, decided_at, executed_at`,
     [reason ?? null, decidedBy, actionId, storeId]
   );
@@ -463,8 +544,8 @@ export async function postWriteoffLedgerEntry(
 ): Promise<void> {
   await query(
     `INSERT INTO stock_ledger (id, sku, store_id, delta_qty, reason, ref_action_id)
-     VALUES (gen_random_uuid(), $1, $2, $3, 'expiry_writeoff', $4)`,
-    [sku, storeId, -qty, actionId]
+     VALUES ($1::uuid, $2, $3::uuid, $4, 'expiry_writeoff', $5::uuid)`,
+    [uuidv4(), sku, storeId, -qty, actionId]
   );
 }
 
@@ -478,13 +559,47 @@ export interface DbShelfFlag {
 }
 
 /** Returns all uncleared shelf flags for this store, oldest first. */
-export async function getActiveShelfFlags(
+// ── Stage 3 & 7: Shelf Flag Queries (doc 03 §4 & doc 07 §1) ───────────────────
+
+export async function hasUnclearedShelfFlag(
+  sku: string,
   storeId: string = DEFAULT_STORE_ID
-): Promise<DbShelfFlag[]> {
-  const res = await query<DbShelfFlag>(
-    `SELECT id, sku, location, flagged_at
+): Promise<boolean> {
+  if (!isUuid(storeId)) return false;
+  const res = await query(
+    `SELECT id FROM shelf_flags
+     WHERE sku = $1 AND store_id = $2::uuid AND cleared_at IS NULL
+     LIMIT 1`,
+    [sku, storeId]
+  );
+  return res.rows.length > 0;
+}
+
+export async function createShelfFlagDb(
+  sku: string,
+  storeId: string = DEFAULT_STORE_ID,
+  location: string = "Aisle Shelf",
+  source: "camera" | "manual" = "camera"
+): Promise<{ id: string; sku: string; store_id: string; location: string; source: string }> {
+  if (!isUuid(storeId)) throw new Error(`Invalid store_id format: ${storeId}`);
+  const id = uuidv4();
+  const res = await query<{ id: string; sku: string; store_id: string; location: string; source: string }>(
+    `INSERT INTO shelf_flags (id, sku, store_id, location, source)
+     VALUES ($1::uuid, $2, $3::uuid, $4, $5)
+     RETURNING id, sku, store_id, location, source`,
+    [id, sku, storeId, location, source]
+  );
+  return res.rows[0];
+}
+
+export async function getUnclearedShelfFlags(
+  storeId: string = DEFAULT_STORE_ID
+): Promise<Array<{ id: string; sku: string; store_id: string; location: string; source: string }>> {
+  if (!isUuid(storeId)) return [];
+  const res = await query<{ id: string; sku: string; store_id: string; location: string; source: string }>(
+    `SELECT id, sku, store_id, location, source
      FROM shelf_flags
-     WHERE store_id = $1 AND cleared_at IS NULL
+     WHERE store_id = $1::uuid AND cleared_at IS NULL
      ORDER BY flagged_at ASC`,
     [storeId]
   );
