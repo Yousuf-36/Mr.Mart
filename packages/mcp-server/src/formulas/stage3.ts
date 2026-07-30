@@ -154,3 +154,36 @@ export function calculateDiscrepancy(
   const flagged = absDiscrepancy > discrepancyThreshold;
   return { discrepancy, absDiscrepancy, flagged };
 }
+
+// ── Supplier Follow-up (doc 03 §6) ───────────────────────────────────────────
+
+export interface SupplierFollowupResult {
+  shouldFollowup: boolean;
+  daysOverdue: number;
+  blockedByDuplicateFollowup: boolean;
+}
+
+/**
+ * doc 03 §6:
+ *   Trigger: Delivery expected date passed without fulfillment record.
+ *   Guardrail: Exactly ONE follow-up drafted per missed delivery. No daily re-drafting!
+ */
+export function calculateSupplierFollowup(
+  expectedDeliveryDate: Date,
+  currentDate: Date = new Date(),
+  hasExistingFollowup: boolean = false
+): SupplierFollowupResult {
+  const diffMs = currentDate.getTime() - expectedDeliveryDate.getTime();
+  const daysOverdue = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (daysOverdue <= 0) {
+    return { shouldFollowup: false, daysOverdue: 0, blockedByDuplicateFollowup: false };
+  }
+
+  if (hasExistingFollowup) {
+    return { shouldFollowup: false, daysOverdue, blockedByDuplicateFollowup: true };
+  }
+
+  return { shouldFollowup: true, daysOverdue, blockedByDuplicateFollowup: false };
+}
+

@@ -44,7 +44,7 @@ Pulled from across the docs — resolve before considering v1 "spec complete":
 
 - [ ] Base LLM/model choice for the Worker's judgment-heavy drafting (wording, not arithmetic) — (doc 01 §10)
 - [ ] Target platform: Android-only vs Android+iOS — (doc 01 §10)
-- [ ] Shelf Restock Task camera detection: v1 or Phase 2 — (doc 01 §10)
+- [x] Shelf Restock Task camera detection: v1 implemented per doc 01 §10 & doc 10 Stage 7 (doc 07 mislabeling corrected to doc 01 §10; doc 07 is Testing & QA Plan)
 - [ ] Regional language(s) for the unavoidable text labels — (doc 01 §10)
 - [ ] RDS vs Neon.tech — (doc 01 §10)
 - [ ] Self-hosted vs managed Prometheus — (doc 01 §10)

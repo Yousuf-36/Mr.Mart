@@ -31,11 +31,16 @@ import {
 } from "@mrmart/mcp-server/store/pg-store.js";
 import { enqueueExecuteJob } from "@mrmart/mcp-server/queue/index.js";
 
+import onboardingRouter from "./routes/onboarding.js";
+
 const PORT = parseInt(process.env.BACKEND_PORT ?? "3001", 10);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Mount Onboarding Router (doc 08 & doc 10 Stage 7)
+app.use("/api/onboarding", onboardingRouter);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {

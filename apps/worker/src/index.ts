@@ -176,7 +176,12 @@ export async function runAutoReorderCheck(storeId: string = DEFAULT_STORE_ID): P
 
     for (const product of products) {
       const qtyOnHand = await getCurrentStock(product.sku, storeId);
-      const avgDailySales = await getTrailing14DayAvgDailySales(product.sku, storeId);
+      let avgDailySales = await getTrailing14DayAvgDailySales(product.sku, storeId);
+      if (avgDailySales === 0 && product.reorder_point > 0) {
+        const leadTime = product.lead_time_days || 2;
+        const safety = settings.safety_factor || 1.3;
+        avgDailySales = parseFloat((product.reorder_point / (leadTime * safety)).toFixed(2));
+      }
 
       const calc = calculateReorder({
         avgDailySales,

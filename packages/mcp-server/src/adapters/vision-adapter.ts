@@ -1,7 +1,7 @@
 /**
  * Computer Vision & Camera Ingestion Adapter (Stage 7).
  * Ingests camera telemetry for shelf stockouts and checkout queue congestion.
- * Doc 07: Vision & Sensors spec.
+ * Ref: doc 01 §10 & doc 10 Stage 7 (Note: docs/07 is Testing & QA Plan).
  */
 
 import {

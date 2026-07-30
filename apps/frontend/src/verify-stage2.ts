@@ -33,8 +33,9 @@ export async function runStage2Verification() {
 
   // 3. Test GET /api/actions/pending (Cockpit Home Screen Data)
   console.log("\n--- 3. TEST GET /api/actions/pending (APPROVAL QUEUE) ---");
+  const authHeaders = { Authorization: "Bearer token_owner_store_a", "Content-Type": "application/json" };
   const startQueueTime = Date.now();
-  const pendingRes = await fetch("http://localhost:3001/api/actions/pending");
+  const pendingRes = await fetch("http://localhost:3001/api/actions/pending", { headers: authHeaders });
   const queueRenderDuration = Date.now() - startQueueTime;
 
   if (!pendingRes.ok) throw new Error(`Failed to fetch pending actions: HTTP ${pendingRes.status}`);
@@ -63,7 +64,7 @@ export async function runStage2Verification() {
   const approveStart = Date.now();
   const approveRes = await fetch(`http://localhost:3001/api/actions/${riceCard.id}/approve`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders,
     body: JSON.stringify({ decided_by: "c0000000-0000-0000-0000-000000000001" }),
   });
   const approveDuration = Date.now() - approveStart;
@@ -89,21 +90,21 @@ export async function runStage2Verification() {
 
   // Stock Pulse
   const stockStart = Date.now();
-  const stockRes = await fetch("http://localhost:3001/api/monitoring/stock");
+  const stockRes = await fetch("http://localhost:3001/api/monitoring/stock", { headers: authHeaders });
   const stockDuration = Date.now() - stockStart;
   const stockData = await stockRes.json();
   console.log(`🔋 Stock Pulse (${stockDuration}ms): ${stockData.items.length} items loaded`);
 
   // Sales Pulse
   const salesStart = Date.now();
-  const salesRes = await fetch("http://localhost:3001/api/monitoring/top-sellers");
+  const salesRes = await fetch("http://localhost:3001/api/monitoring/top-sellers", { headers: authHeaders });
   const salesDuration = Date.now() - salesStart;
   const salesData = await salesRes.json();
   console.log(`📈 Sales Pulse (${salesDuration}ms): ${salesData.items.length} top sellers loaded`);
 
   // Today's Money
   const moneyStart = Date.now();
-  const moneyRes = await fetch("http://localhost:3001/api/monitoring/sales-summary");
+  const moneyRes = await fetch("http://localhost:3001/api/monitoring/sales-summary", { headers: authHeaders });
   const moneyDuration = Date.now() - moneyStart;
   const moneyData = await moneyRes.json();
   console.log(`💰 Today's Money (${moneyDuration}ms): ₹${moneyData.total_sales} total revenue, ${moneyData.txn_count} txns`);
@@ -113,7 +114,7 @@ export async function runStage2Verification() {
   // Simulate 500ms network RTT latency for low-end 3G connection
   const throttledStart = Date.now();
   await new Promise((resolve) => setTimeout(resolve, 500)); // 3G RTT delay
-  const throttledQueueRes = await fetch("http://localhost:3001/api/actions/pending");
+  const throttledQueueRes = await fetch("http://localhost:3001/api/actions/pending", { headers: authHeaders });
   await throttledQueueRes.json();
   const throttledDuration = Date.now() - throttledStart;
 

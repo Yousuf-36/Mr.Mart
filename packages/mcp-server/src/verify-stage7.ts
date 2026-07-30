@@ -1,5 +1,5 @@
 /**
- * Stage 7 Verification Suite — Computer Vision & Camera Ingestion (doc 07 & doc 10 DoD).
+ * Stage 7 Verification Suite — Computer Vision & Camera Ingestion (doc 01 §10 & doc 10 Stage 7).
  * Verifies end-to-end vision camera telemetry triggering:
  * 1. Shelf Stockout Detection (creates shelf_flags row with source='camera' -> Stage 3 restock task link)
  * 2. Checkout Queue Congestion Alert (drafts queue_alert staffing action when ratio > 4.0)

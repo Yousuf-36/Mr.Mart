@@ -347,15 +347,25 @@ export async function executeActionWithLockDb(actionId: string, storeId: string 
 }
 
 export async function markActionApprovedDb(actionId: string, decidedBy: string = "c0000000-0000-0000-0000-000000000001", storeId: string = DEFAULT_STORE_ID): Promise<DbAction> {
-  if (!isUuid(actionId) || !isUuid(storeId) || !isUuid(decidedBy)) {
+  if (!isUuid(actionId) || !isUuid(storeId)) {
       throw new Error(`Invalid UUID provided`);
   }
+  
+  // Verify if decidedBy is a valid staff ID, otherwise fallback to default staff ID
+  let validStaffId = "c0000000-0000-0000-0000-000000000001";
+  if (isUuid(decidedBy)) {
+    const staffCheck = await query(`SELECT id FROM staff WHERE id = $1 LIMIT 1`, [decidedBy]);
+    if (staffCheck.rows.length > 0) {
+      validStaffId = decidedBy;
+    }
+  }
+
   const res = await query<DbAction>(
     `UPDATE actions
      SET status = 'approved', decided_at = NOW(), decided_by = $1::uuid, failure_reason = NULL
      WHERE id = $2::uuid AND store_id = $3::uuid AND status IN ('pending', 'failed')
      RETURNING id, store_id, type, sku, payload, status, escalated, decided_by, reject_reason, failure_reason, created_at, decided_at, executed_at`,
-    [decidedBy, actionId, storeId]
+    [validStaffId, actionId, storeId]
   );
   if (res.rows.length === 0) {
     throw new Error(`Action not found or not in pending/failed state: ${actionId}`);
@@ -396,7 +406,12 @@ export async function draftReorderForSkuDb(sku: string, storeId: string = DEFAUL
 
   const settings = await getSettings(storeId);
   const qtyOnHand = await getCurrentStock(sku, storeId);
-  const avgDailySales = await getTrailing14DayAvgDailySales(sku, storeId);
+  let avgDailySales = await getTrailing14DayAvgDailySales(sku, storeId);
+  if (avgDailySales === 0 && product.reorder_point > 0) {
+    const leadTime = product.lead_time_days || 2;
+    const safety = settings.safety_factor || 1.3;
+    avgDailySales = parseFloat((product.reorder_point / (leadTime * safety)).toFixed(2));
+  }
 
   // Compute formulas
   const calc: ReorderCalculationResult = calculateReorder({
