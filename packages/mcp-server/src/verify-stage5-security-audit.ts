@@ -92,23 +92,30 @@ async function runSecurityPenetrationAudit() {
       STORE_A_ID
     );
 
-    // 1. Staff role probe
-    const staffCheck = canApproveAction("staff", standardAction);
-    assert.equal(staffCheck.allowed, false, "Staff must be blocked from approving reorders");
+    // Shelf restock task
+    const restockAction = await createPendingActionDb(
+      "restock_task",
+      "MILK-1L",
+      { product_name: "Full Cream Milk 1L", qty: 10, location: "Dairy Fridge A" },
+      STORE_A_ID
+    );
 
-    // 2. Manager role probe on high-value order
-    const managerCheck = canApproveAction("manager", highValueAction);
-    assert.equal(managerCheck.allowed, false, "Manager must be blocked from high-value orders requiring owner confirmation");
+    // 1. Staff role probe on reorder (financial automation) -> Blocked
+    const staffReorderCheck = canApproveAction("staff", standardAction);
+    assert.equal(staffReorderCheck.allowed, false, "Staff must be blocked from approving reorders (doc 05 §2)");
 
-    // 3. Manager role probe on standard order
-    const managerStdCheck = canApproveAction("manager", standardAction);
-    assert.equal(managerStdCheck.allowed, true, "Manager can approve standard operational orders");
+    // 2. Staff role probe on restock_task (operational task) -> Allowed
+    const staffRestockCheck = canApproveAction("staff", restockAction);
+    assert.equal(staffRestockCheck.allowed, true, "Staff is allowed to approve/complete restock_task (doc 05 §2)");
 
-    // 4. Owner role probe on high-value order
-    const ownerCheck = canApproveAction("owner", highValueAction);
-    assert.equal(ownerCheck.allowed, true, "Owner can approve high-value orders requiring 2nd confirmation");
+    // 3. Owner role probe on standard & high-value reorders -> Allowed
+    const ownerStdCheck = canApproveAction("owner", standardAction);
+    assert.equal(ownerStdCheck.allowed, true, "Owner can approve standard reorder actions");
 
-    console.log(`   ✅ PASS: Role boundaries enforced (Staff=Forbidden, Manager=Standard Only, Owner=Full Access).`);
+    const ownerHighCheck = canApproveAction("owner", highValueAction);
+    assert.equal(ownerHighCheck.allowed, true, "Owner can approve high-value reorders requiring 2nd confirmation");
+
+    console.log(`   ✅ PASS: Role boundaries enforced per docs/05 §2 (Staff=Restock Only, Owner=Full Access).`);
     passCount++;
   } catch (err: any) {
     console.error(`   ❌ FAIL Vector 2:`, err.message);

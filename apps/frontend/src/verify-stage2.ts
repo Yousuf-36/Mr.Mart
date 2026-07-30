@@ -73,16 +73,27 @@ export async function runStage2Verification() {
   const approveResult = await approveRes.json();
   console.log(`Approve API Response (${approveDuration}ms):`, approveResult);
 
-  // Verify row state in Postgres database
-  const updatedActionDb = await getActionDb(riceCard.id, DEFAULT_STORE_ID);
-  console.log(`\n📊 Real-Time Postgres Database Row Verification:`);
-  console.log(`   Action ID : ${updatedActionDb?.id}`);
-  console.log(`   Status    : ${updatedActionDb?.status} (Expected: approved/executed)`);
-  console.log(`   DecidedAt : ${updatedActionDb?.decided_at?.toISOString()}`);
-  console.log(`   DecidedBy : ${updatedActionDb?.decided_by}`);
+  // Verify row state in Postgres database (must reach 'executed' status)
+  let updatedActionDb = await getActionDb(riceCard.id, DEFAULT_STORE_ID);
+  let pollAttempts = 0;
+  while (updatedActionDb?.status !== "executed" && pollAttempts < 20) {
+    await new Promise((r) => setTimeout(r, 100));
+    updatedActionDb = await getActionDb(riceCard.id, DEFAULT_STORE_ID);
+    pollAttempts++;
+  }
 
-  if (updatedActionDb?.status !== "approved" && updatedActionDb?.status !== "executed") {
-    throw new Error(`FAIL: Postgres row status is '${updatedActionDb?.status}', expected 'approved' or 'executed'!`);
+  console.log(`\n📊 Real-Time Postgres Database Row Verification:`);
+  console.log(`   Action ID  : ${updatedActionDb?.id}`);
+  console.log(`   Status     : ${updatedActionDb?.status} (Expected: strictly 'executed')`);
+  console.log(`   DecidedAt  : ${updatedActionDb?.decided_at?.toISOString()}`);
+  console.log(`   ExecutedAt : ${updatedActionDb?.executed_at?.toISOString()}`);
+  console.log(`   DecidedBy  : ${updatedActionDb?.decided_by}`);
+
+  if (updatedActionDb?.status !== "executed") {
+    throw new Error(`FAIL: Postgres row status is '${updatedActionDb?.status}', expected strictly 'executed'!`);
+  }
+  if (!updatedActionDb?.executed_at) {
+    throw new Error(`FAIL: Postgres row executed_at timestamp is null for action ${riceCard.id}!`);
   }
 
   // 5. Test Monitoring Screens (Stock Pulse, Sales Pulse, Today's Money)

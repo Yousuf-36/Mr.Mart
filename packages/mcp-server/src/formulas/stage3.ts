@@ -132,27 +132,28 @@ export function calculateSlowMoverReorderPoint(currentReorderPoint: number): num
 // ── Day-Close Reconciliation (doc 03 §7) ─────────────────────────────────────
 
 export interface DiscrepancyResult {
-  /** Signed: positive = cash over, negative = cash short */
+  /** Always non-negative absolute discrepancy per doc 03 §7: |actual_cash - expected_cash| */
   discrepancy: number;
-  absDiscrepancy: number;
-  /** True only if |discrepancy| strictly exceeds discrepancy_threshold */
+  /** Signed difference: positive = cash over, negative = cash short */
+  signedDiff: number;
+  /** True only if discrepancy strictly exceeds discrepancy_threshold */
   flagged: boolean;
 }
 
 /**
  * doc 03 §7:
- *   discrepancy = actual_cash − expected_cash   (signed)
- *   flagged     = |discrepancy| > discrepancy_threshold
+ *   discrepancy = |expected_cash − counted_cash|   (always non-negative)
+ *   flagged     = discrepancy > discrepancy_threshold
  */
 export function calculateDiscrepancy(
   actualCash: number,
   expectedCash: number,
   discrepancyThreshold: number = 200
 ): DiscrepancyResult {
-  const discrepancy = parseFloat((actualCash - expectedCash).toFixed(2));
-  const absDiscrepancy = Math.abs(discrepancy);
-  const flagged = absDiscrepancy > discrepancyThreshold;
-  return { discrepancy, absDiscrepancy, flagged };
+  const signedDiff = parseFloat((actualCash - expectedCash).toFixed(2));
+  const discrepancy = Math.abs(signedDiff);
+  const flagged = discrepancy > discrepancyThreshold;
+  return { discrepancy, signedDiff, flagged };
 }
 
 // ── Supplier Follow-up (doc 03 §6) ───────────────────────────────────────────

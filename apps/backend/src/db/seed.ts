@@ -233,26 +233,24 @@ export async function seedDatabase() {
     ON CONFLICT (id) DO NOTHING;
   `, [storeBId, accountId]);
 
-  // Store Users
+  // Store Users (Owner & Staff roles per doc 05 §2)
   await query(`
     INSERT INTO store_users (id, user_id, store_id, role)
     VALUES
-      ($1::uuid, $2::uuid, $7::uuid, 'owner'),
-      ($3::uuid, $4::uuid, $7::uuid, 'manager'),
-      ($5::uuid, $6::uuid, $7::uuid, 'staff'),
-      ($8::uuid, $9::uuid, $10::uuid, 'owner');
-  `, [uuidv4(), userOwnerAId, uuidv4(), userManagerAId, uuidv4(), userStaffAId, storeId, uuidv4(), userOwnerBId, storeBId]);
+      ($1::uuid, $2::uuid, $5::uuid, 'owner'),
+      ($3::uuid, $4::uuid, $5::uuid, 'staff'),
+      ($6::uuid, $7::uuid, $8::uuid, 'owner');
+  `, [uuidv4(), userOwnerAId, uuidv4(), userStaffAId, storeId, uuidv4(), userOwnerBId, storeBId]);
 
   // API Tokens (Expires in 1 year)
   const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
   await query(`
     INSERT INTO api_tokens (id, user_id, store_id, token, expires_at)
     VALUES
-      ($1::uuid, $2::uuid, $7::uuid, 'token_owner_store_a',   $11),
-      ($3::uuid, $4::uuid, $7::uuid, 'token_manager_store_a', $11),
-      ($5::uuid, $6::uuid, $7::uuid, 'token_staff_store_a',   $11),
-      ($8::uuid, $9::uuid, $10::uuid, 'token_owner_store_b',   $11);
-  `, [uuidv4(), userOwnerAId, uuidv4(), userManagerAId, uuidv4(), userStaffAId, storeId, uuidv4(), userOwnerBId, storeBId, farFuture]);
+      ($1::uuid, $2::uuid, $5::uuid, 'token_owner_store_a', $9),
+      ($3::uuid, $4::uuid, $5::uuid, 'token_staff_store_a', $9),
+      ($6::uuid, $7::uuid, $8::uuid, 'token_owner_store_b', $9);
+  `, [uuidv4(), userOwnerAId, uuidv4(), userStaffAId, storeId, uuidv4(), userOwnerBId, storeBId, farFuture]);
 
   // Seed one pending action for Store B to test Store Isolation
   const storeBActionId = uuidv4();

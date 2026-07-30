@@ -50,5 +50,15 @@ export async function enqueueExecuteJob(actionId: string, extraData?: Record<str
     await jobQueue.add("execute", { action_id: actionId, ...extraData });
   } catch (err) {
     console.warn("[Queue] Redis offline — job queued in-memory fallback:", (err as Error).message);
+    const { getActionDb, markActionExecutedDb } = await import("../store/pg-store.js");
+    const { executeByType } = await import("../tools/execute.js");
+    const action = await getActionDb(actionId);
+    if (action) {
+      if (extraData?.simulate_failure) {
+        await markActionExecutedDb(actionId, "failed", "Simulated execution failure", action.store_id);
+      } else {
+        await executeByType(action);
+      }
+    }
   }
 }

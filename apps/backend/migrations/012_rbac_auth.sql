@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS store_users (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   store_id    UUID NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
-  role        TEXT NOT NULL CHECK (role IN ('owner', 'manager', 'staff')),
+  role        TEXT NOT NULL CHECK (role IN ('owner', 'staff')),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (user_id, store_id)

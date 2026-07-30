@@ -75,7 +75,7 @@ export interface DbAction {
   executed_at: Date | null;
 }
 
-export type UserRole = "owner" | "manager" | "staff";
+export type UserRole = "owner" | "staff";
 
 export interface DbUserContext {
   user_id: string;

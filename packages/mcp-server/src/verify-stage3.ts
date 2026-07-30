@@ -110,10 +110,12 @@ export async function runStage3Verification() {
   console.log("\n7️⃣  Day-Close Discrepancy (doc 03 §7):");
   const discrepancyUnflagged = calculateDiscrepancy(10050, 10000, 200); // ₹50 discrepancy (threshold ₹200)
   console.log(`   Under Threshold (₹50 vs ₹200): Discrepancy=₹${discrepancyUnflagged.discrepancy}, Flagged=${discrepancyUnflagged.flagged}`);
+  assert.strictEqual(discrepancyUnflagged.discrepancy, 50);
   assert.strictEqual(discrepancyUnflagged.flagged, false);
 
-  const discrepancyFlagged = calculateDiscrepancy(9500, 10000, 200); // -₹500 discrepancy (threshold ₹200)
-  console.log(`   Over Threshold (-₹500 vs ₹200): Discrepancy=₹${discrepancyFlagged.discrepancy}, Flagged=${discrepancyFlagged.flagged}`);
+  const discrepancyFlagged = calculateDiscrepancy(9500, 10000, 200); // counted 9500 vs expected 10000 -> |9500-10000| = ₹500
+  console.log(`   Over Threshold (|9500 - 10000| = ₹500 vs ₹200): Discrepancy=₹${discrepancyFlagged.discrepancy}, Flagged=${discrepancyFlagged.flagged}`);
+  assert.strictEqual(discrepancyFlagged.discrepancy, 500, "Discrepancy must be absolute non-negative value ₹500 per doc 03 §7");
   assert.strictEqual(discrepancyFlagged.flagged, true, "Guardrail: discrepancy > ₹200 flags day-close discrepancy");
   console.log("   ✅ PASS: Day-Close discrepancy formula & threshold flag guardrail verified.");
   passCount++;
