@@ -296,6 +296,9 @@ export async function createPendingActionDb(
   storeId: string = DEFAULT_STORE_ID
 ): Promise<DbAction> {
   if (!isUuid(storeId)) throw new Error(`Invalid store_id format: ${storeId}`);
+  if (await hasPendingAction(sku, type, storeId)) {
+    throw new Error(`Duplicate pending action guardrail: a pending ${type} action already exists for SKU ${sku}`);
+  }
   try {
     const res = await query<DbAction>(
       `INSERT INTO actions (id, store_id, type, sku, payload, status, escalated)

@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   },
   rejectBtn: {
     flex: 1,
-    backgroundColor: COLORS.ink,
+    backgroundColor: COLORS.alertRed,
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
