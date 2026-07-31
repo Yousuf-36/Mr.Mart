@@ -152,30 +152,30 @@ describe("Stage 3 Automation Formulas (doc 03 §2–7)", () => {
     it("flags a cash surplus above ₹200 threshold (cash over)", () => {
       // actual=₹1500, expected=₹1250 → discrepancy=₹250 > ₹200 → flagged
       const r = calculateDiscrepancy(1500, 1250, 200);
+      assert.equal(r.signedDiff, 250);
       assert.equal(r.discrepancy, 250);
-      assert.equal(r.absDiscrepancy, 250);
       assert.equal(r.flagged, true);
     });
 
     it("does NOT flag discrepancy below threshold", () => {
       // actual=₹1450, expected=₹1300 → |₹150| ≤ ₹200 → not flagged
       const r = calculateDiscrepancy(1450, 1300, 200);
-      assert.equal(r.absDiscrepancy, 150);
+      assert.equal(r.discrepancy, 150);
       assert.equal(r.flagged, false);
     });
 
     it("handles negative discrepancy (cash short — counted less than expected)", () => {
       // actual=₹1000, expected=₹1250 → discrepancy=-₹250 → |250| > 200 → flagged
       const r = calculateDiscrepancy(1000, 1250, 200);
-      assert.equal(r.discrepancy, -250);
-      assert.equal(r.absDiscrepancy, 250);
+      assert.equal(r.signedDiff, -250);
+      assert.equal(r.discrepancy, 250);
       assert.equal(r.flagged, true);
     });
 
     it("exact threshold value (₹200) is NOT flagged — must strictly exceed", () => {
       // actual=₹1400, expected=₹1200 → |₹200| is NOT > ₹200
       const r = calculateDiscrepancy(1400, 1200, 200);
-      assert.equal(r.absDiscrepancy, 200);
+      assert.equal(r.discrepancy, 200);
       assert.equal(r.flagged, false);
     });
   });

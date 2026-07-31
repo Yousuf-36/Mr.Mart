@@ -390,7 +390,7 @@ export function registerDraftTools(server: McpServer): void {
         getSettings(storeId),
       ]);
 
-      const { discrepancy, absDiscrepancy, flagged } = calculateDiscrepancy(
+      const { discrepancy, signedDiff, flagged } = calculateDiscrepancy(
         actual_cash,
         todaySales.cash_amount,
         settings.discrepancy_threshold
@@ -402,7 +402,7 @@ export function registerDraftTools(server: McpServer): void {
         expected_cash: todaySales.cash_amount,
         digital_amount: todaySales.digital_amount,
         discrepancy,
-        abs_discrepancy: absDiscrepancy,
+        signed_diff: signedDiff,
         discrepancy_flagged: flagged,
         discrepancy_threshold: settings.discrepancy_threshold,
         txn_count: todaySales.txn_count,

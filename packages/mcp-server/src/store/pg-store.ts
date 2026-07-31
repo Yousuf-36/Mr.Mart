@@ -385,12 +385,24 @@ export async function markActionExecutedDb(actionId: string, status: "executed" 
 }
 
 export async function markActionRejectedDb(actionId: string, reason?: string, decidedBy: string = "c0000000-0000-0000-0000-000000000001", storeId: string = DEFAULT_STORE_ID): Promise<DbAction> {
+  if (!isUuid(actionId) || !isUuid(storeId)) {
+    throw new Error(`Invalid UUID provided`);
+  }
+
+  let validStaffId = "c0000000-0000-0000-0000-000000000001";
+  if (isUuid(decidedBy)) {
+    const staffCheck = await query(`SELECT id FROM staff WHERE id = $1 LIMIT 1`, [decidedBy]);
+    if (staffCheck.rows.length > 0) {
+      validStaffId = decidedBy;
+    }
+  }
+
   const res = await query<DbAction>(
     `UPDATE actions
      SET status = 'rejected', decided_at = NOW(), reject_reason = $1, decided_by = $2::uuid
      WHERE id = $3::uuid AND store_id = $4::uuid AND status = 'pending'
      RETURNING id, store_id, type, sku, payload, status, escalated, decided_by, reject_reason, failure_reason, created_at, decided_at, executed_at`,
-    [reason ?? null, decidedBy, actionId, storeId]
+    [reason ?? null, validStaffId, actionId, storeId]
   );
   if (res.rows.length === 0) {
     throw new Error(`Action not found or not pending: ${actionId}`);
