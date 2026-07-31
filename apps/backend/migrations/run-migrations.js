@@ -13,6 +13,7 @@
 const { Client } = require("pg");
 const fs = require("fs");
 const path = require("path");
+require("dotenv").config();
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {

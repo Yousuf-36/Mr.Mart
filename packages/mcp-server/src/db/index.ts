@@ -29,7 +29,7 @@ export function getPool(): pg.Pool {
     if (isMemoryDbMode) {
       poolInstance = createMemoryDb() as unknown as pg.Pool;
     } else {
-      poolInstance = new pg.Pool({ connectionString: DATABASE_URL, connectionTimeoutMillis: 1000 });
+      poolInstance = new pg.Pool({ connectionString: DATABASE_URL, connectionTimeoutMillis: 10000 });
     }
   }
   return poolInstance;
