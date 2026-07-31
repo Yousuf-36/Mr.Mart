@@ -11,7 +11,8 @@
     "./store/pg-store.js": "./src/store/pg-store.ts",
     "./formulas/reorder.js": "./src/formulas/reorder.ts",
     "./formulas/stage3.js": "./src/formulas/stage3.ts",
-    "./adapters/vision-adapter.js": "./src/adapters/vision-adapter.ts"
+    "./adapters/vision-adapter.js": "./src/adapters/vision-adapter.ts",
+    "./adapters/razorpay-adapter.js": "./src/adapters/razorpay-adapter.ts"
   },
   "scripts": {
     "build": "tsc",

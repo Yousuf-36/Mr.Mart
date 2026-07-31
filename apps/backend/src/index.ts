@@ -28,10 +28,12 @@ import {
   computeStockStatus,
   DEFAULT_STORE_ID,
   query,
+  checkAccountDegraded,
 } from "@mrmart/mcp-server/store/pg-store.js";
 import { enqueueExecuteJob } from "@mrmart/mcp-server/queue/index.js";
 
 import onboardingRouter from "./routes/onboarding.js";
+import billingRouter from "./routes/billing.js";
 
 const PORT = parseInt(process.env.BACKEND_PORT ?? "3001", 10);
 
@@ -39,15 +41,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Mount Onboarding Router (doc 08 & doc 10 Stage 7)
+// Mount Routers
 app.use("/api/onboarding", onboardingRouter);
+app.use("/api/billing", billingRouter);
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     service: "mrmart-backend",
-    stage: 5,
+    stage: 8,
     timestamp: new Date().toISOString(),
   });
 });
@@ -92,6 +95,13 @@ app.post("/api/actions/:id/approve", requireAuth, async (req, res, next) => {
     const actionId = req.params.id;
     const user = req.user!;
 
+    // 0. Stage 8: Check if account is degraded (read-only mode)
+    const degradedCheck = await checkAccountDegraded(user.store_id);
+    if (degradedCheck.isDegraded) {
+      res.status(403).json({ error: degradedCheck.reason || "Forbidden: Account status is degraded" });
+      return;
+    }
+
     // 1. Fetch action scoped to authenticated store
     const action = await getActionDb(actionId, user.store_id);
     if (!action) {
@@ -112,12 +122,12 @@ app.post("/api/actions/:id/approve", requireAuth, async (req, res, next) => {
       return;
     }
 
-    // 3. Update status in Postgres
+    // 4. Update status in Postgres
     const approvedAction = await markActionApprovedDb(actionId, user.user_id, user.store_id);
 
     const simulateFailure = req.body.simulate_failure;
 
-    // 4. Enqueue execution job
+    // 5. Enqueue execution job
     try {
       await enqueueExecuteJob(approvedAction.id, simulateFailure ? { simulate_failure: true } : undefined);
     } catch (qErr) {
@@ -143,6 +153,13 @@ app.post("/api/actions/:id/reject", requireAuth, async (req, res, next) => {
     const actionId = req.params.id;
     const user = req.user!;
     const reason = req.body.reason || "Rejected by user";
+
+    // 0. Stage 8: Check if account is degraded (read-only mode)
+    const degradedCheck = await checkAccountDegraded(user.store_id);
+    if (degradedCheck.isDegraded) {
+      res.status(403).json({ error: degradedCheck.reason || "Forbidden: Account status is degraded" });
+      return;
+    }
 
     const action = await getActionDb(actionId, user.store_id);
     if (!action) {

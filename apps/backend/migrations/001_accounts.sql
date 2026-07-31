@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   account_id           UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   plan                 TEXT NOT NULL CHECK (plan IN ('trial', 'starter', 'growth', 'pro')),
   status               TEXT NOT NULL DEFAULT 'active'
-                       CHECK (status IN ('active', 'past_due', 'cancelled')),
+                       CHECK (status IN ('active', 'past_due', 'degraded', 'cancelled')),
   billing_provider     TEXT,                -- 'stripe' | 'razorpay' | null (trial)
   external_customer_id TEXT,               -- Stripe customer ID or Razorpay customer ID
   billing_cycle_start  TIMESTAMPTZ,

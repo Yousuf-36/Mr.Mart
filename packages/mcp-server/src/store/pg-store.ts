@@ -75,7 +75,7 @@ export interface DbAction {
   executed_at: Date | null;
 }
 
-export type UserRole = "owner" | "staff";
+export type UserRole = "owner" | "manager" | "staff";
 
 export interface DbUserContext {
   user_id: string;
@@ -735,3 +735,98 @@ export async function getTodayCashSales(
   );
   return res.rows[0] ?? { cash_amount: 0, digital_amount: 0, txn_count: 0 };
 }
+
+// ── Stage 8: Subscription & Billing Helpers (doc 09 & doc 10 Stage 8) ──────
+
+export interface AccountSubscriptionDetails {
+  account_id: string;
+  account_name: string;
+  plan: string;
+  account_status: "active" | "past_due" | "degraded" | "cancelled";
+  trial_ends_at: Date;
+  subscription_id: string | null;
+  subscription_status: string | null;
+  billing_provider: string | null;
+}
+
+export async function getAccountSubscriptionDetails(
+  storeId: string = DEFAULT_STORE_ID
+): Promise<AccountSubscriptionDetails | null> {
+  const res = await query<{
+    account_id: string;
+    account_name: string;
+    plan: string;
+    account_status: string;
+    trial_ends_at: Date;
+    subscription_id: string | null;
+    subscription_status: string | null;
+    billing_provider: string | null;
+  }>(
+    `SELECT 
+       a.id as account_id,
+       a.name as account_name,
+       a.plan,
+       COALESCE(a.status, 'active') as account_status,
+       a.trial_ends_at,
+       s.id as subscription_id,
+       s.status as subscription_status,
+       s.billing_provider
+     FROM stores st
+     JOIN accounts a ON st.account_id = a.id
+     LEFT JOIN subscriptions s ON s.account_id = a.id
+     WHERE st.id = $1
+     LIMIT 1`,
+    [storeId]
+  );
+
+  if (res.rows.length === 0) return null;
+  const row = res.rows[0];
+
+  return {
+    account_id: row.account_id,
+    account_name: row.account_name,
+    plan: row.plan,
+    account_status: (row.account_status || "active") as any,
+    trial_ends_at: row.trial_ends_at,
+    subscription_id: row.subscription_id,
+    subscription_status: row.subscription_status,
+    billing_provider: row.billing_provider,
+  };
+}
+
+export async function checkAccountDegraded(
+  storeId: string = DEFAULT_STORE_ID
+): Promise<{ isDegraded: boolean; reason?: string }> {
+  const details = await getAccountSubscriptionDetails(storeId);
+  if (!details) return { isDegraded: false };
+
+  const isDegradedStatus = details.account_status === "degraded" || details.subscription_status === "degraded";
+  if (isDegradedStatus) {
+    return {
+      isDegraded: true,
+      reason: "Account degraded due to unpaid subscription / expired trial — cockpit in read-only mode (doc 09 §2)",
+    };
+  }
+
+  return { isDegraded: false };
+}
+
+export async function setAccountStatusDb(
+  accountId: string,
+  status: "active" | "past_due" | "degraded" | "cancelled"
+): Promise<void> {
+  await query(`UPDATE accounts SET status = $1, updated_at = NOW() WHERE id = $2`, [status, accountId]);
+  await query(`UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE account_id = $2`, [status, accountId]);
+}
+
+export async function updateAccountPlanDb(
+  accountId: string,
+  newPlan: string
+): Promise<void> {
+  await query(`UPDATE accounts SET plan = $1, status = 'active', updated_at = NOW() WHERE id = $2`, [newPlan, accountId]);
+  await query(
+    `UPDATE subscriptions SET plan = $1, status = 'active', billing_provider = 'razorpay', updated_at = NOW() WHERE account_id = $2`,
+    [newPlan, accountId]
+  );
+}
+
