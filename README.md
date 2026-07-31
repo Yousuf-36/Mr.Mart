@@ -278,6 +278,10 @@ Other critical points:
 
 ## Current Build Status
 
+> [!NOTE]
+> **Environment Note regarding Local Verification Execution:** In local CLI test script runs (Stages 1–8), test scripts execute production SQL migrations and queries against the `pg-mem` in-memory PostgreSQL emulator and in-memory queue fallback whenever Docker Desktop is not booted on the host machine. Real PostgreSQL 16 and Redis 7 containers defined in [`docker-compose.yml`](docker-compose.yml) are targeted automatically on `localhost:5432` / `localhost:6379` whenever Docker Desktop is active.
+
+
 | Stage | Status | What was done |
 |---|---|---|
 | **Stage 0** | ✅ Complete | Monorepo scaffold, 11 Postgres migrations (multi-tenant from `accounts`), MCP server with all 18 tools (mock data), Backend health endpoint, Worker BullMQ skeleton, docker-compose, README |
