@@ -99,19 +99,18 @@ async function runStage5Verification() {
       STORE_A_ID
     );
 
-    const managerHighValueResult = canApproveAction("manager", highValueReorder);
-    assert.equal(managerHighValueResult.allowed, false, "Manager must be blocked from high-value orders requiring 2nd confirmation");
-    assert.match(managerHighValueResult.reason || "", /requires second confirmation from store owner/);
+    const staffHighValueResult = canApproveAction("staff", highValueReorder);
+    assert.equal(staffHighValueResult.allowed, false, "Staff must be blocked from high-value orders requiring 2nd confirmation");
 
-    // Manager CAN approve regular reorder (cost ≤ ₹5000)
-    const managerRegularResult = canApproveAction("manager", reorderAction);
-    assert.equal(managerRegularResult.allowed, true, "Manager can approve regular reorders");
+    // Staff cannot approve financial reorder actions (restock tasks only)
+    const staffRegularResult = canApproveAction("staff", reorderAction);
+    assert.equal(staffRegularResult.allowed, false, "Staff cannot approve financial reorders");
 
     // Owner CAN approve high-value orders
     const ownerResult = canApproveAction("owner", highValueReorder);
     assert.equal(ownerResult.allowed, true, "Owner can approve high-value orders requiring 2nd confirmation");
 
-    console.log(`   ✅ PASS: Staff, Manager, and Owner RBAC permission boundaries strictly enforced.`);
+    console.log(`   ✅ PASS: Staff and Owner RBAC permission boundaries strictly enforced per doc 05 §2.`);
     passCount++;
   } catch (err: unknown) {
     console.error(`   ❌ FAIL Test 2:`, err instanceof Error ? err.message : err);
@@ -129,18 +128,12 @@ async function runStage5Verification() {
     assert.equal(ownerCtx.store_id, STORE_A_ID);
     assert.equal(ownerCtx.role, "owner");
 
-    // 2. Valid Manager Token
-    const managerCtx = await validateApiTokenDb(TOKEN_MANAGER_A);
-    assert.ok(managerCtx, "Manager A token must be valid");
-    assert.equal(managerCtx.store_id, STORE_A_ID);
-    assert.equal(managerCtx.role, "manager");
-
-    // 3. Valid Staff Token
+    // 2. Valid Staff Token
     const staffCtx = await validateApiTokenDb(TOKEN_STAFF_A);
     assert.ok(staffCtx, "Staff A token must be valid");
     assert.equal(staffCtx.role, "staff");
 
-    // 4. Valid Store B Owner Token
+    // 3. Valid Store B Owner Token
     const ownerBCtx = await validateApiTokenDb(TOKEN_OWNER_B);
     assert.ok(ownerBCtx, "Owner B token must be valid");
     assert.equal(ownerBCtx.store_id, STORE_B_ID);

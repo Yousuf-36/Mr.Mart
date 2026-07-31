@@ -1,6 +1,6 @@
 -- Migration 012: RBAC and Auth tables
 -- Creates users, store_users, and api_tokens tables for Multi-Tenant Auth & Role Isolation.
--- Roles: 'owner' | 'manager' | 'staff'.
+-- Roles: 'owner' | 'staff'.
 
 BEGIN;
 

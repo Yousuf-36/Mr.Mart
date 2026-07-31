@@ -75,7 +75,7 @@ export interface DbAction {
   executed_at: Date | null;
 }
 
-export type UserRole = "owner" | "manager" | "staff";
+export type UserRole = "owner" | "staff";
 
 export interface DbUserContext {
   user_id: string;
@@ -137,8 +137,8 @@ export function canApproveAction(
     };
   }
 
-  // Manager and Owner can approve standard operational actions
-  if (role === "manager" || role === "owner") {
+  // Owner can approve standard operational actions
+  if (role === "owner") {
     return { allowed: true };
   }
 
