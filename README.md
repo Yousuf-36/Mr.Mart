@@ -279,7 +279,7 @@ Other critical points:
 ## Current Build Status
 
 > [!NOTE]
-> **Environment Note regarding Infrastructure Execution:** Postgres: connected to real Neon.tech instance, confirmed working. Redis: still pending Redis Cloud setup, queue currently falls back to in-memory.
+> **Environment Note regarding Infrastructure Execution:** Development runs against real Neon.tech Postgres and real Redis Cloud. No pg-mem/in-memory fallback in use. Verified July 31, 2026.
 
 
 | Stage | Status | What was done |

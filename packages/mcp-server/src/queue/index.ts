@@ -21,8 +21,14 @@ export const connection = new IORedis({
   enableOfflineQueue: false,
 });
 
-connection.on("error", () => {
-  // Silent catch to prevent unhandled process error events when Redis is offline
+connection.on("connect", () => {
+  console.log(`✅ Producer Redis connected (${REDIS_HOST}:${REDIS_PORT})`);
+});
+
+connection.on("error", (err) => {
+  if (REDIS_HOST !== "localhost") {
+    console.error("[Queue] Redis connection error:", err.message);
+  }
 });
 
 export const jobQueue = new Queue("mrmart-jobs", {
@@ -38,27 +44,27 @@ export const jobQueue = new Queue("mrmart-jobs", {
   },
 });
 
-jobQueue.on("error", () => {
-  // Silent catch for offline queue errors
-});
-
 export async function enqueueExecuteJob(actionId: string, extraData?: Record<string, unknown>): Promise<void> {
+  if (connection.status !== "ready" && connection.status !== "connecting") {
+    await connection.connect();
+  }
   try {
-    if (connection.status !== "ready" && connection.status !== "connecting") {
-      await connection.connect();
-    }
     await jobQueue.add("execute", { action_id: actionId, ...extraData });
   } catch (err) {
-    console.warn("[Queue] Redis offline — job queued in-memory fallback:", (err as Error).message);
-    const { getActionDb, markActionExecutedDb } = await import("../store/pg-store.js");
-    const { executeByType } = await import("../tools/execute.js");
-    const action = await getActionDb(actionId);
-    if (action) {
-      if (extraData?.simulate_failure) {
-        await markActionExecutedDb(actionId, "failed", "Simulated execution failure", action.store_id);
-      } else {
-        await executeByType(action);
+    if (REDIS_HOST === "localhost") {
+      console.warn("[Queue] Redis offline — job queued in-memory fallback:", (err as Error).message);
+      const { getActionDb, markActionExecutedDb } = await import("../store/pg-store.js");
+      const { executeByType } = await import("../tools/execute.js");
+      const action = await getActionDb(actionId);
+      if (action) {
+        if (extraData?.simulate_failure) {
+          await markActionExecutedDb(actionId, "failed", "Simulated execution failure", action.store_id);
+        } else {
+          await executeByType(action);
+        }
       }
+    } else {
+      throw err;
     }
   }
 }
